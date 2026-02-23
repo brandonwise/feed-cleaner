@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feed Cleaner — Transform Your X Feed</title>
+  <meta name="description" content="Chrome extension that filters AI slop, engagement bait, and bot content from your X/Twitter feed. See what's real.">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      background: #0a0a14;
+      color: #e7e9ea;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+    }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 80px 0 60px;
+    }
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #60a5fa, #3b82f6, #6366f1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero .subtitle {
+      font-size: 20px;
+      color: #9ca3af;
+      margin-bottom: 32px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .hero .cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #3b82f6;
+      color: white;
+      padding: 14px 32px;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .hero .cta:hover { background: #2563eb; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3); }
+    .hero .free-badge {
+      display: inline-block;
+      margin-top: 12px;
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    /* Privacy Banner */
+    .privacy-banner {
+      text-align: center;
+      padding: 16px;
+      background: #065f4620;
+      border: 1px solid #10b98130;
+      border-radius: 10px;
+      margin-bottom: 60px;
+      font-size: 14px;
+      color: #6ee7b7;
+    }
+
+    /* Features */
+    .features {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 60px;
+    }
+    .feature {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 16px;
+      padding: 28px;
+      transition: border-color 0.2s;
+    }
+    .feature:hover { border-color: #3b82f640; }
+    .feature .icon { font-size: 32px; margin-bottom: 12px; }
+    .feature h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .feature p { color: #9ca3af; font-size: 14px; }
+
+    /* How It Works */
+    .how-it-works {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+    .how-it-works h2 { font-size: 32px; font-weight: 700; margin-bottom: 32px; }
+    .steps {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 24px;
+    }
+    .step {
+      padding: 24px;
+    }
+    .step .number {
+      width: 48px; height: 48px;
+      background: #3b82f620;
+      border: 2px solid #3b82f6;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 700; color: #60a5fa;
+      margin: 0 auto 16px;
+    }
+    .step h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .step p { color: #9ca3af; font-size: 13px; }
+
+    /* Scoring */
+    .scoring {
+      background: #111827;
+      border-radius: 16px;
+      padding: 40px;
+      margin-bottom: 60px;
+    }
+    .scoring h2 { font-size: 28px; font-weight: 700; margin-bottom: 24px; text-align: center; }
+    .grades {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .grade {
+      width: 64px; height: 64px;
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; font-weight: 800;
+    }
+    .grade-a { background: #065f46; color: #6ee7b7; border: 2px solid #10b981; }
+    .grade-b { background: #064e3b; color: #a7f3d0; border: 2px solid #34d399; }
+    .grade-c { background: #78350f; color: #fcd34d; border: 2px solid #f59e0b; }
+    .grade-d { background: #7c2d12; color: #fdba74; border: 2px solid #f97316; }
+    .grade-f { background: #7f1d1d; color: #fca5a5; border: 2px solid #ef4444; }
+    .scoring .desc { text-align: center; color: #9ca3af; font-size: 15px; max-width: 600px; margin: 0 auto; }
+
+    /* Pricing */
+    .pricing {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+    .pricing h2 { font-size: 32px; font-weight: 700; margin-bottom: 32px; }
+    .pricing-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    .pricing-card {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 16px;
+      padding: 32px;
+    }
+    .pricing-card.pro { border-color: #3b82f6; background: #0f172a; }
+    .pricing-card h3 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .pricing-card .price { font-size: 36px; font-weight: 800; margin: 12px 0; }
+    .pricing-card .price span { font-size: 16px; color: #6b7280; font-weight: 400; }
+    .pricing-card ul { list-style: none; text-align: left; margin: 16px 0; }
+    .pricing-card li { padding: 6px 0; font-size: 14px; color: #9ca3af; }
+    .pricing-card li::before { content: '✓ '; color: #10b981; font-weight: 700; }
+    .pricing-card .btn {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .pricing-card .btn-free { background: #1f2937; color: #e7e9ea; border: none; cursor: pointer; }
+    .pricing-card .btn-pro { background: #3b82f6; color: white; border: none; cursor: pointer; }
+    .pricing-card .btn-pro:hover { background: #2563eb; }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 40px 0;
+      border-top: 1px solid #1f2937;
+      color: #4b5563;
+      font-size: 13px;
+    }
+    footer a { color: #6b7280; text-decoration: none; }
+    footer a:hover { color: #9ca3af; }
+
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 32px; }
+      .features { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr; }
+      .pricing-cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Hero -->
+    <section class="hero">
+      <h1>🧹 Your feed, but actually good.</h1>
+      <p class="subtitle">
+        Feed Cleaner scores every post on your X timeline for AI slop, engagement bait, and bot content. 
+        See what's real. Filter what's not.
+      </p>
+      <a href="#" class="cta">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg>
+        Add to Chrome — Free
+      </a>
+      <div class="free-badge">No account needed · No data collected · Works instantly</div>
+    </section>
+
+    <!-- Privacy -->
+    <div class="privacy-banner">
+      🔒 <strong>100% Local.</strong> All analysis happens in your browser. We never see your feed, your data, or your scores. Zero tracking. Zero collection. Period.
+    </div>
+
+    <!-- Features -->
+    <section class="features">
+      <div class="feature">
+        <div class="icon">🤖</div>
+        <h3>AI Content Detection</h3>
+        <p>24 linguistic patterns and 500+ vocabulary signals detect AI-generated posts. Based on the Humanizer engine.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🎣</div>
+        <h3>Engagement Bait Filter</h3>
+        <p>Catches shock hooks, rage bait, FOMO triggers, engagement farming, and empty thread promises.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🤖</div>
+        <h3>Bot & Farm Detection</h3>
+        <p>Flags generic replies, suspicious follower ratios, and new accounts with unnatural activity.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">💎</div>
+        <h3>Gem Highlighter</h3>
+        <p>Don't just filter the bad — discover the great. Posts with original insights and genuine value get highlighted.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">📊</div>
+        <h3>Feed Health Dashboard</h3>
+        <p>See your feed's quality score, time saved, posts filtered, and which accounts bring value vs. noise.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">👤</div>
+        <h3>Account Audit</h3>
+        <p>Ranked list of your best and worst follows based on content quality. Know who to keep and who to drop.</p>
+      </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="how-it-works">
+      <h2>How It Works</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="number">1</div>
+          <h3>Install</h3>
+          <p>Add to Chrome with one click. No account, no setup, no permissions beyond X.com.</p>
+        </div>
+        <div class="step">
+          <div class="number">2</div>
+          <h3>Browse</h3>
+          <p>Every post gets scored automatically. Color-coded borders show quality at a glance.</p>
+        </div>
+        <div class="step">
+          <div class="number">3</div>
+          <h3>Control</h3>
+          <p>Choose your filter mode: Highlight, Dim, or Clean. Set your quality threshold. You're in charge.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scoring -->
+    <section class="scoring">
+      <h2>Every Post Gets a Grade</h2>
+      <div class="grades">
+        <div class="grade grade-a">A</div>
+        <div class="grade grade-b">B</div>
+        <div class="grade grade-c">C</div>
+        <div class="grade grade-d">D</div>
+        <div class="grade grade-f">F</div>
+      </div>
+      <p class="desc">
+        Click any score to see exactly why — AI vocabulary, bait patterns, originality signals. 
+        No black box. Full transparency on every decision.
+      </p>
+    </section>
+
+    <!-- Pricing -->
+    <section class="pricing">
+      <h2>Simple Pricing</h2>
+      <div class="pricing-cards">
+        <div class="pricing-card">
+          <h3>Free</h3>
+          <div class="price">$0</div>
+          <ul>
+            <li>Highlight mode (color-code all posts)</li>
+            <li>Score badges on every post</li>
+            <li>Click-to-reveal score breakdown</li>
+            <li>Basic session stats</li>
+            <li>3 account audits</li>
+          </ul>
+          <button class="btn btn-free">Get Free Version</button>
+        </div>
+        <div class="pricing-card pro">
+          <h3>Pro ✨</h3>
+          <div class="price">$4.99<span>/mo</span></div>
+          <ul>
+            <li>Everything in Free</li>
+            <li>Dim & Clean filter modes</li>
+            <li>Full analytics dashboard</li>
+            <li>Unlimited account audits</li>
+            <li>Custom whitelist & blacklist</li>
+            <li>Export your data</li>
+            <li>Share feed health score</li>
+          </ul>
+          <button class="btn btn-pro">Get Pro</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>Feed Cleaner · Built by <a href="https://github.com/brandonwise">brandonwise</a></p>
+      <p style="margin-top: 8px;">🔒 Zero data collection · Open detection patterns · <a href="#">GitHub</a></p>
+    </div>
+  </footer>
+</body>
+</html>

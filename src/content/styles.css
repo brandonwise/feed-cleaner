@@ -1,0 +1,56 @@
+/* Feed Cleaner — Injected Styles */
+
+/* Gem pulse animation */
+@keyframes fc-gem-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Score badge hover */
+.fc-score-badge:hover .fc-grade {
+  transform: scale(1.05);
+}
+
+/* Smooth transitions for filtered content */
+[data-fc-scored] {
+  transition: border-left 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease !important;
+}
+
+/* Detail panel animations */
+.fc-detail-panel {
+  animation: fc-panel-slide 0.2s ease-out;
+}
+
+@keyframes fc-panel-slide {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Filtered summary hover */
+.fc-filtered-summary:hover > div {
+  background: #1e1e3a !important;
+}
+
+/* Override X's styles to ensure our elements display correctly */
+.fc-score-badge,
+.fc-detail-panel,
+.fc-gem,
+.fc-filtered-summary {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+  line-height: 1.4 !important;
+}
+
+/* Dark mode compatibility (X is always dark now but just in case) */
+@media (prefers-color-scheme: light) {
+  .fc-detail-panel > div {
+    background: #f8f9fa !important;
+    color: #1a1a2e !important;
+    border-color: #e5e7eb !important;
+  }
+}

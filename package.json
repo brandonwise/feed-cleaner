@@ -1,0 +1,18 @@
+{
+  "name": "feed-cleaner",
+  "version": "1.0.0",
+  "description": "Chrome extension that filters AI slop, engagement bait, and bot content from your X/Twitter feed.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && node scripts/post-build.mjs",
+    "build:fast": "vite build && node scripts/post-build.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "author": "Brandon Wise",
+  "license": "MIT"
+}
