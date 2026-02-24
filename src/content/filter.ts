@@ -1,65 +1,64 @@
-// Filter Engine — hides, dims, or highlights posts based on score
-import type { FilterMode, UserSettings, PostScore } from '../shared/types';
+// Filter Engine v2 — category-based actions
+import type { DetectionResult, UserSettings, FilterAction, Category, CategoryFlag } from '../shared/types';
+import { CATEGORY_META } from '../shared/types';
 
-/** Apply filtering to a tweet element based on its score and user settings */
+/**
+ * Apply filtering based on detection result and user settings.
+ * Returns the most aggressive action taken.
+ */
 export function applyFilter(
   element: HTMLElement,
-  score: PostScore,
+  result: DetectionResult,
   settings: UserSettings,
-): 'shown' | 'dimmed' | 'hidden' {
+): { action: 'none' | 'dim' | 'hide'; categories: Category[] } {
   // Check whitelist
-  if (settings.whitelist.includes(score.authorHandle.toLowerCase())) {
+  const authorHandle = element.dataset.fcAuthor?.toLowerCase();
+  if (authorHandle && settings.whitelist.includes(authorHandle)) {
     resetFilter(element);
-    return 'shown';
+    return { action: 'none', categories: [] };
   }
 
-  // Check blacklist
-  if (settings.blacklist.includes(score.authorHandle.toLowerCase())) {
-    hideElement(element);
-    return 'hidden';
-  }
-
-  // Check if post is below threshold
-  const belowThreshold = score.overallScore < settings.threshold;
-
-  // Check individual category overrides
-  const failsCategory =
-    (settings.enableAiDetection && score.breakdown.aiScore >= 70) ||
-    (settings.enableBaitDetection && score.breakdown.baitScore >= 70) ||
-    (settings.enableBotDetection && score.breakdown.botScore >= 70);
-
-  if (!belowThreshold && !failsCategory) {
+  if (result.flags.length === 0) {
     resetFilter(element);
-    return 'shown';
+    return { action: 'none', categories: [] };
   }
 
-  switch (settings.mode) {
-    case 'highlight':
-      // Don't hide anything, just show the colors (handled by overlay)
-      resetFilter(element);
-      return 'shown';
+  // Find the most aggressive action across all flagged categories
+  let worstAction: FilterAction = 'show';
+  const activeCategories: Category[] = [];
+
+  for (const flag of result.flags) {
+    const action = settings.filters[flag.category];
+    if (action === 'hide') {
+      worstAction = 'hide';
+      activeCategories.push(flag.category);
+    } else if (action === 'dim' && worstAction !== 'hide') {
+      worstAction = 'dim';
+      activeCategories.push(flag.category);
+    } else if (action !== 'show') {
+      activeCategories.push(flag.category);
+    }
+  }
+
+  switch (worstAction) {
+    case 'hide':
+      hideElement(element, result.flags.filter(f => settings.filters[f.category] === 'hide'));
+      return { action: 'hide', categories: activeCategories };
 
     case 'dim':
-      dimElement(element, score.overallScore);
-      return 'dimmed';
-
-    case 'clean':
-      hideElement(element);
-      return 'hidden';
+      dimElement(element);
+      return { action: 'dim', categories: activeCategories };
 
     default:
-      return 'shown';
+      resetFilter(element);
+      return { action: 'none', categories: activeCategories };
   }
 }
 
-/** Dim a post — lower opacity based on how bad the score is */
-function dimElement(element: HTMLElement, score: number): void {
-  // Score 0 → 0.15 opacity, Score 39 → 0.4 opacity
-  const opacity = 0.15 + (score / 100) * 0.35;
-  element.style.opacity = String(Math.max(0.1, Math.min(0.5, opacity)));
+function dimElement(element: HTMLElement): void {
+  element.style.opacity = '0.3';
   element.style.transition = 'opacity 0.3s ease';
 
-  // Add undim on hover
   if (!element.dataset.fcDimmed) {
     element.dataset.fcDimmed = 'true';
     element.addEventListener('mouseenter', () => {
@@ -67,66 +66,39 @@ function dimElement(element: HTMLElement, score: number): void {
     });
     element.addEventListener('mouseleave', () => {
       if (element.dataset.fcDimmed === 'true') {
-        element.style.opacity = String(Math.max(0.1, Math.min(0.5, opacity)));
+        element.style.opacity = '0.3';
       }
     });
   }
 }
 
-/** Hide a post entirely with a smooth collapse */
-function hideElement(element: HTMLElement): void {
-  element.style.transition = 'max-height 0.3s ease, opacity 0.2s ease, margin 0.3s ease, padding 0.3s ease';
-  element.style.overflow = 'hidden';
-  element.style.opacity = '0';
-
-  // Use requestAnimationFrame for smooth animation
-  requestAnimationFrame(() => {
-    element.style.maxHeight = '0px';
-    element.style.margin = '0';
-    element.style.padding = '0';
-    element.style.borderWidth = '0';
-  });
-}
-
-/** Reset any applied filters */
-function resetFilter(element: HTMLElement): void {
-  element.style.removeProperty('opacity');
-  element.style.removeProperty('max-height');
-  element.style.removeProperty('overflow');
-  element.style.removeProperty('margin');
-  element.style.removeProperty('padding');
-  element.style.removeProperty('border-width');
-  delete element.dataset.fcDimmed;
-}
-
-/** Show a "filtered" summary bar instead of hiding completely */
-export function showFilteredSummary(
-  element: HTMLElement,
-  score: PostScore,
-  onReveal: () => void,
-): void {
+function hideElement(element: HTMLElement, flags: CategoryFlag[]): void {
+  // Create a summary bar
   const summary = document.createElement('div');
-  summary.className = 'fc-filtered-summary';
+  summary.className = 'fc-hidden-summary';
+
+  const labels = flags.map(f => {
+    const meta = CATEGORY_META[f.category];
+    return `${meta.emoji} ${meta.label}`;
+  }).join(' · ');
+
   summary.innerHTML = `
     <div style="
-      padding: 8px 16px;
-      background: #1a1a2e;
-      border-left: 3px solid #ef4444;
-      margin: 4px 0;
+      padding: 6px 16px;
+      background: #0d1117;
+      border-left: 3px solid #374151;
+      margin: 2px 0;
       display: flex;
       align-items: center;
       justify-content: space-between;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 12px;
-      color: #6b7280;
+      color: #4b5563;
       border-radius: 4px;
       cursor: pointer;
     ">
-      <span>
-        🛡️ Filtered: ${score.flags[0]?.label || 'Low quality'} 
-        <span style="opacity: 0.5">(${score.grade} · ${score.overallScore}/100)</span>
-      </span>
-      <span style="color: #3b82f6; font-size: 11px;">Show anyway →</span>
+      <span>🛡️ Hidden: ${labels}</span>
+      <span style="color: #3b82f6; font-size: 11px;">Show →</span>
     </div>
   `;
 
@@ -134,9 +106,30 @@ export function showFilteredSummary(
     summary.remove();
     resetFilter(element);
     element.style.display = '';
-    onReveal();
   });
 
-  element.style.display = 'none';
+  // Collapse the tweet
+  element.style.transition = 'max-height 0.3s ease, opacity 0.2s ease';
+  element.style.overflow = 'hidden';
+  element.style.maxHeight = '0px';
+  element.style.opacity = '0';
+  element.style.margin = '0';
+  element.style.padding = '0';
+
   element.parentNode?.insertBefore(summary, element);
+}
+
+function resetFilter(element: HTMLElement): void {
+  element.style.removeProperty('opacity');
+  element.style.removeProperty('max-height');
+  element.style.removeProperty('overflow');
+  element.style.removeProperty('margin');
+  element.style.removeProperty('padding');
+  delete element.dataset.fcDimmed;
+
+  // Remove hidden summary bars
+  const prev = element.previousElementSibling;
+  if (prev?.classList.contains('fc-hidden-summary')) {
+    prev.remove();
+  }
 }

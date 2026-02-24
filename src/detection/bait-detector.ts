@@ -1,102 +1,179 @@
-// Engagement Bait Detection
-import { BAIT_PATTERNS } from './patterns';
-import type { AnalysisContext, DetectionResult, DetectionFlag } from './types';
+// Engagement Bait Detector v2 — expanded pattern matching
+import type { TweetData, CategoryFlag, Signal } from '../shared/types';
 
 /**
  * Detect engagement bait patterns.
- * Returns score 0-100 where higher = more baity.
+ * These are highly consistent and regex-able.
  */
-export function detectBait(ctx: AnalysisContext): DetectionResult {
-  const flags: DetectionFlag[] = [];
-  let totalScore = 0;
+export function detectBait(tweet: TweetData): CategoryFlag | null {
+  const signals: Signal[] = [];
+  const text = tweet.text;
 
-  // ── Pattern Matching ────────────────────────────────────────
-  for (const bait of BAIT_PATTERNS) {
-    if (bait.pattern.test(ctx.text)) {
-      totalScore += bait.weight;
-      flags.push({
-        name: bait.name,
-        label: bait.description,
-        description: `Matched: ${bait.name.replace(/_/g, ' ')}`,
-        severity: bait.weight >= 8 ? 'high' : bait.weight >= 5 ? 'medium' : 'low',
-        score: bait.weight,
+  // ── HIGH confidence (15-25 pts) ─────────────────────────────
+
+  // Direct engagement manipulation
+  if (/(?:(?:like|retweet|repost|rt|share|follow)\s+(?:if\s+you|this\s+if|for\s+more)|(?:drop\s+a|comment)\s+[\u{1F300}-\u{1F9FF}👇❤🔥💀]|who(?:'s|\s+is)\s+with\s+me\??)/iu.test(text)) {
+    signals.push({
+      name: 'engagement_manipulation',
+      label: 'Engagement Manipulation',
+      description: '"Like if you agree", "RT if..." — asking for engagement directly',
+      weight: 25,
+      severity: 'high',
+    });
+  }
+
+  // Rage bait
+  if (/(?:nobody\s+(?:is\s+)?talk(?:s|ing)\s+about\s+(?:this|how)|why\s+is\s+(?:nobody|no\s*one)\s+(?:talking|upset)\s+about|am\s+i\s+the\s+only\s+one\s+who|can\s+we\s+(?:talk|agree)\s+(?:about\s+)?how)/i.test(text)) {
+    signals.push({
+      name: 'rage_bait',
+      label: 'Rage Bait',
+      description: '"Nobody is talking about this" — manufactured outrage',
+      weight: 20,
+      severity: 'high',
+    });
+  }
+
+  // False urgency from non-news accounts
+  if (/^(?:🚨+\s*)?(?:BREAKING|JUST IN|URGENT|ALERT|BREAKING NEWS)\s*[:\-!🚨]/i.test(text)) {
+    // Only flag if it's not from a known news account (basic heuristic)
+    const newsHandles = ['reuters', 'ap', 'baborjournal', 'nytimes', 'washingtonpost', 'bbc', 'cnn', 'foxnews', 'msnbc', 'bloomberg', 'cnbc', 'wsj'];
+    if (!newsHandles.some(h => tweet.authorHandle.toLowerCase().includes(h))) {
+      signals.push({
+        name: 'false_urgency',
+        label: 'False Urgency',
+        description: '"BREAKING" from a non-news account',
+        weight: 20,
+        severity: 'high',
       });
     }
   }
 
-  // ── Excessive Emoji Usage ───────────────────────────────────
-  const emojiCount = (ctx.text.match(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu) || []).length;
-  const emojiRatio = ctx.stats.wordCount > 0 ? emojiCount / ctx.stats.wordCount : 0;
+  // ── MEDIUM confidence (8-15 pts) ────────────────────────────
 
-  if (emojiRatio > 0.15 && emojiCount >= 3) {
-    const emojiScore = Math.min(8, Math.round(emojiRatio * 20));
-    totalScore += emojiScore;
-    flags.push({
+  // Reply farming: multiple questions, short post
+  const questionMarks = (text.match(/\?/g) || []).length;
+  if (questionMarks >= 2 && tweet.wordCount < 30) {
+    signals.push({
+      name: 'reply_farming',
+      label: 'Reply Farming',
+      description: `${questionMarks} questions in a short post — fishing for replies`,
+      weight: 12,
+      severity: 'medium',
+    });
+  }
+
+  // "Wrong answers only" / reply bait
+  if (/(?:wrong\s+answers?\s+only|go\s*!?\s*$|let's\s+(?:settle\s+this|debate|argue|go)|what's\s+your\s+(?:hot\s+)?take\s*\??)/i.test(text)) {
+    signals.push({
+      name: 'reply_bait',
+      label: 'Reply Bait',
+      description: 'Question designed purely to generate replies',
+      weight: 12,
+      severity: 'medium',
+    });
+  }
+
+  // Clickbait hooks
+  if (/(?:you\s+won'?t\s+believe|this\s+(?:will\s+)?(?:blow\s+your\s+mind|change\s+(?:everything|your\s+life))|wait\s+(?:for\s+it|till\s+you\s+(?:see|hear))|I\s+(?:was|am)\s+shook|the\s+(?:best|worst)\s+part\s+is)/i.test(text)) {
+    signals.push({
+      name: 'clickbait_hook',
+      label: 'Clickbait Hook',
+      description: '"You won\'t believe..." — cliffhanger bait',
+      weight: 15,
+      severity: 'medium',
+    });
+  }
+
+  // Vague teasing
+  if (/(?:big\s+announcement\s+(?:coming\s+)?soon|something\s+(?:big|exciting|huge)\s+is\s+(?:coming|happening)|stay\s+tuned|can't\s+wait\s+to\s+(?:share|announce|reveal)|it's\s+finally\s+happening)/i.test(text)) {
+    signals.push({
+      name: 'vague_tease',
+      label: 'Vague Tease',
+      description: '"Big announcement coming soon" — empty hype',
+      weight: 10,
+      severity: 'medium',
+    });
+  }
+
+  // "Hot take" / "Unpopular opinion" used as a hook
+  if (/^(?:(?:hot|unpopular|controversial|spicy)\s+(?:take|opinion)\s*[:\-]|let\s+that\s+sink\s+in\s*\.?$)/im.test(text)) {
+    signals.push({
+      name: 'hot_take_hook',
+      label: 'Hot Take Hook',
+      description: '"Hot take:" used as engagement hook',
+      weight: 10,
+      severity: 'medium',
+    });
+  }
+
+  // Self-promotion CTA
+  if (/(?:follow\s+(?:me\s+)?for\s+more|link\s+in\s+(?:bio|comments?|thread|reply)|(?:join|subscribe\s+to)\s+my\s+(?:newsletter|community|discord|channel))/i.test(text)) {
+    signals.push({
+      name: 'self_promo',
+      label: 'Self-Promotion',
+      description: '"Follow me for more" / "Link in bio" — CTA',
+      weight: 10,
+      severity: 'medium',
+    });
+  }
+
+  // ── LOW confidence (3-7 pts) ────────────────────────────────
+
+  // Excessive emojis (🚨🔥💯 overuse)
+  const emojiCount = (text.match(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu) || []).length;
+  if (emojiCount >= 5 && tweet.wordCount > 0 && emojiCount / tweet.wordCount > 0.2) {
+    signals.push({
       name: 'emoji_overload',
-      label: 'Excessive Emoji Usage',
-      description: `${emojiCount} emojis in ${ctx.stats.wordCount} words (${(emojiRatio * 100).toFixed(0)}% ratio)`,
-      severity: emojiRatio > 0.3 ? 'high' : 'medium',
-      score: emojiScore,
+      label: 'Emoji Overload',
+      description: `${emojiCount} emojis — attention-grabbing over substance`,
+      weight: 5,
+      severity: 'low',
     });
   }
 
-  // ── ALL CAPS Words ──────────────────────────────────────────
-  const capsWords = ctx.text.split(/\s+/).filter(w => w.length > 2 && w === w.toUpperCase() && /[A-Z]/.test(w));
-  if (capsWords.length >= 3) {
-    const capsScore = Math.min(6, capsWords.length);
-    totalScore += capsScore;
-    flags.push({
-      name: 'caps_abuse',
-      label: 'CAPS Lock Abuse',
-      description: `${capsWords.length} ALL-CAPS words: ${capsWords.slice(0, 3).join(', ')}`,
-      severity: capsWords.length >= 5 ? 'high' : 'medium',
-      score: capsScore,
-    });
-  }
-
-  // ── Hashtag Stuffing ────────────────────────────────────────
-  const hashtags = (ctx.text.match(/#\w+/g) || []);
-  if (hashtags.length >= 5) {
-    const hashScore = Math.min(8, hashtags.length - 3);
-    totalScore += hashScore;
-    flags.push({
+  // Hashtag stuffing (5+)
+  const hashtags = (text.match(/#\w+/g) || []).length;
+  if (hashtags >= 5) {
+    signals.push({
       name: 'hashtag_stuffing',
       label: 'Hashtag Stuffing',
-      description: `${hashtags.length} hashtags — likely optimizing for discovery, not conversation`,
-      severity: hashtags.length >= 8 ? 'high' : 'medium',
-      score: hashScore,
+      description: `${hashtags} hashtags — optimizing for discovery`,
+      weight: 5,
+      severity: 'low',
     });
   }
 
-  // ── Question Farming ────────────────────────────────────────
-  const questions = (ctx.text.match(/\?/g) || []).length;
-  if (questions >= 3 && ctx.stats.wordCount < 50) {
-    const qScore = Math.min(5, questions);
-    totalScore += qScore;
-    flags.push({
-      name: 'question_farming',
-      label: 'Question Farming',
-      description: `${questions} questions in a short post — likely farming replies`,
+  // ALL CAPS words (3+)
+  const capsWords = text.split(/\s+/).filter(w => w.length > 2 && w === w.toUpperCase() && /[A-Z]/.test(w));
+  if (capsWords.length >= 4) {
+    signals.push({
+      name: 'caps_abuse',
+      label: 'CAPS Abuse',
+      description: `${capsWords.length} ALL-CAPS words — shouting for attention`,
+      weight: 5,
+      severity: 'low',
+    });
+  }
+
+  // "Save this" / "Bookmark this" CTA
+  if (/(?:save\s+this|bookmark\s+this|pin\s+this)\s+(?:for\s+later|before\s+it'?s?\s+(?:gone|deleted|removed|too\s+late))/i.test(text)) {
+    signals.push({
+      name: 'save_urgency',
+      label: 'Save Urgency',
+      description: '"Save this before it\'s gone" — false scarcity',
+      weight: 8,
       severity: 'medium',
-      score: qScore,
     });
   }
 
-  // ── "Follow me for more" type CTA ──────────────────────────
-  if (/(?:follow\s+(?:me|for\s+more)|(?:link|more)\s+in\s+(?:bio|comments?|thread))/i.test(ctx.text)) {
-    totalScore += 5;
-    flags.push({
-      name: 'self_promo_cta',
-      label: 'Self-Promotion CTA',
-      description: 'Contains follow/bio/link call-to-action',
-      severity: 'medium',
-      score: 5,
-    });
-  }
+  // ── Calculate total ─────────────────────────────────────────
 
-  // Bait patterns are strong signals even in short text — minimal confidence dampening
-  const confidence = Math.min(1, 0.7 + ctx.stats.wordCount / 60);
-  const finalScore = Math.min(100, Math.round(totalScore * confidence));
+  const totalWeight = signals.reduce((sum, s) => sum + s.weight, 0);
+  if (totalWeight < 10) return null;
 
-  return { score: finalScore, flags, confidence };
+  return {
+    category: 'bait',
+    confidence: Math.min(100, totalWeight),
+    signals,
+  };
 }

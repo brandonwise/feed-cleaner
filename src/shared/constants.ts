@@ -1,43 +1,38 @@
-import type { UserSettings } from './types';
+import type { UserSettings, SessionStats, Category } from './types';
 
 export const DEFAULT_SETTINGS: UserSettings = {
-  mode: 'highlight',
-  threshold: 40,
-  enableAiDetection: true,
-  enableBaitDetection: true,
-  enableBotDetection: true,
-  enableOriginalityDetection: true,
+  filters: {
+    ad: 'hide',
+    ai: 'dim',
+    bait: 'dim',
+    bot: 'hide',
+    lowEffort: 'show',
+  },
   whitelist: [],
   blacklist: [],
-  showScoreBadge: true,
-  showGems: true,
+  showTags: true,
   showDetailOnClick: true,
-  gemThreshold: 85,
-  weights: {
-    ai: 30,
-    bait: 30,
-    bot: 20,
-    originality: 20,
-  },
 };
+
+export function newSessionStats(): SessionStats {
+  return {
+    postsScanned: 0,
+    postsByCategory: { ad: 0, ai: 0, bait: 0, bot: 0, lowEffort: 0 },
+    postsFiltered: 0,
+    postsDimmed: 0,
+    sessionStart: Date.now(),
+  };
+}
 
 export const STORAGE_KEYS = {
   settings: 'fc_settings',
   sessionStats: 'fc_session_stats',
   dailyStats: 'fc_daily_stats',
   allTimeStats: 'fc_all_time_stats',
-  accountProfiles: 'fc_account_profiles',
-  postCache: 'fc_post_cache',
 } as const;
 
-// Average reading time per filtered post (seconds)
 export const AVG_READ_TIME_SECONDS = 8;
-
-// Max posts to cache scores for
-export const MAX_CACHE_SIZE = 5000;
-
-// Max account profiles to store
-export const MAX_ACCOUNT_PROFILES = 500;
-
 export const EXTENSION_NAME = 'Feed Cleaner';
-export const EXTENSION_VERSION = '1.0.0';
+export const EXTENSION_VERSION = '2.0.0';
+
+export const ALL_CATEGORIES: Category[] = ['ad', 'ai', 'bait', 'bot', 'lowEffort'];

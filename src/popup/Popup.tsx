@@ -1,12 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import type { UserSettings, SessionStats, DailyStats, AllTimeStats } from '../shared/types';
-import { DEFAULT_SETTINGS } from '../shared/constants';
+import type { UserSettings, SessionStats, DailyStats, AllTimeStats, Category, FilterAction } from '../shared/types';
+import { DEFAULT_SETTINGS, ALL_CATEGORIES } from '../shared/constants';
+import { CATEGORY_META } from '../shared/types';
 
 interface Stats {
   session: SessionStats;
   daily: DailyStats;
   allTime: AllTimeStats;
 }
+
+const ACTION_LABELS: Record<FilterAction, string> = {
+  show: 'Show',
+  dim: 'Dim',
+  hide: 'Hide',
+};
+
+const ACTION_CYCLE: FilterAction[] = ['show', 'dim', 'hide'];
 
 export function Popup() {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
@@ -17,29 +26,26 @@ export function Popup() {
     chrome.runtime.sendMessage({ type: 'GET_STATS' }).then(setStats);
   }, []);
 
-  const updateMode = (mode: UserSettings['mode']) => {
-    const updated = { ...settings, mode };
+  const cycleAction = (cat: Category) => {
+    const current = settings.filters[cat];
+    const idx = ACTION_CYCLE.indexOf(current);
+    const next = ACTION_CYCLE[(idx + 1) % ACTION_CYCLE.length];
+    const filters = { ...settings.filters, [cat]: next };
+    const updated = { ...settings, filters };
     setSettings(updated);
-    chrome.runtime.sendMessage({ type: 'UPDATE_SETTINGS', payload: { mode } });
-  };
-
-  const updateThreshold = (threshold: number) => {
-    const updated = { ...settings, threshold };
-    setSettings(updated);
-    chrome.runtime.sendMessage({ type: 'UPDATE_SETTINGS', payload: { threshold } });
+    chrome.runtime.sendMessage({ type: 'UPDATE_SETTINGS', payload: { filters } });
   };
 
   const s = stats?.session;
-  const d = stats?.daily;
 
   return (
-    <div style={{ padding: '16px' }}>
+    <div style={{ padding: '16px', minWidth: '320px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
         <span style={{ fontSize: '24px' }}>🧹</span>
         <div>
-          <h1 style={{ fontSize: '16px', fontWeight: 700, lineHeight: 1.2 }}>Feed Cleaner</h1>
-          <p style={{ fontSize: '11px', color: '#6b7280' }}>AI Content Filter</p>
+          <h1 style={{ fontSize: '16px', fontWeight: 700, lineHeight: 1.2, margin: 0 }}>Feed Cleaner</h1>
+          <p style={{ fontSize: '11px', color: '#6b7280', margin: 0 }}>Filter the noise from your feed</p>
         </div>
       </div>
 
@@ -50,19 +56,45 @@ export function Popup() {
         padding: '12px',
         marginBottom: '12px',
       }}>
-        <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '8px', fontWeight: 600 }}>
-          THIS SESSION
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 600 }}>THIS SESSION</span>
+          <span style={{ fontSize: '20px', fontWeight: 700, color: '#e7e9ea' }}>
+            {s?.postsScanned ?? 0} <span style={{ fontSize: '12px', color: '#6b7280', fontWeight: 400 }}>scanned</span>
+          </span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          <StatCard label="Scanned" value={s?.postsScanned ?? 0} />
-          <StatCard label="Filtered" value={s?.postsFiltered ?? 0} color="#ef4444" />
-          <StatCard label="Gems Found" value={s?.gemsFound ?? 0} icon="💎" color="#fbbf24" />
-          <StatCard label="Feed Score" value={s?.avgFeedScore ?? 0} suffix="/100" color={
-            (s?.avgFeedScore ?? 0) >= 70 ? '#10b981' :
-            (s?.avgFeedScore ?? 0) >= 50 ? '#f59e0b' : '#ef4444'
-          } />
+
+        {/* Category breakdown */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {ALL_CATEGORIES.map(cat => {
+            const meta = CATEGORY_META[cat];
+            const count = s?.postsByCategory?.[cat] ?? 0;
+            if (count === 0 && cat === 'lowEffort') return null; // hide low effort if nothing flagged
+            return (
+              <div key={cat} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                background: count > 0 ? `${meta.bgColor}80` : 'transparent',
+              }}>
+                <span style={{ fontSize: '12px', color: count > 0 ? meta.color : '#4b5563' }}>
+                  {meta.emoji} {meta.label}
+                </span>
+                <span style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: count > 0 ? meta.color : '#374151',
+                }}>
+                  {count}
+                </span>
+              </div>
+            );
+          })}
         </div>
-        {d && d.estimatedMinutesSaved > 0 && (
+
+        {/* Hidden / dimmed summary */}
+        {(s && (s.postsFiltered > 0 || s.postsDimmed > 0)) && (
           <div style={{
             marginTop: '8px',
             padding: '6px 10px',
@@ -73,88 +105,69 @@ export function Popup() {
             color: '#6ee7b7',
             textAlign: 'center',
           }}>
-            ⏱️ Saved ~{d.estimatedMinutesSaved} min today
+            🛡️ {s.postsFiltered} hidden · {s.postsDimmed} dimmed
           </div>
         )}
       </div>
 
-      {/* Mode Selector */}
-      <div style={{ marginBottom: '12px' }}>
-        <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '6px', fontWeight: 600 }}>
-          FILTER MODE
-        </div>
-        <div style={{ display: 'flex', gap: '4px' }}>
-          {(['highlight', 'dim', 'clean'] as const).map(mode => (
-            <button
-              key={mode}
-              onClick={() => updateMode(mode)}
-              style={{
-                flex: 1,
-                padding: '8px',
-                border: `1px solid ${settings.mode === mode ? '#3b82f6' : '#333'}`,
-                background: settings.mode === mode ? '#3b82f620' : '#1a1a2e',
-                color: settings.mode === mode ? '#60a5fa' : '#9ca3af',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: settings.mode === mode ? 600 : 400,
-                transition: 'all 0.2s',
-              }}
-            >
-              {mode === 'highlight' ? '🎨' : mode === 'dim' ? '🔅' : '🧹'}{' '}
-              {mode.charAt(0).toUpperCase() + mode.slice(1)}
-            </button>
-          ))}
-        </div>
-        <p style={{ fontSize: '10px', color: '#4b5563', marginTop: '4px' }}>
-          {settings.mode === 'highlight' ? 'Color-code posts by quality, hide nothing' :
-           settings.mode === 'dim' ? 'Fade low-quality posts, hover to reveal' :
-           'Remove low-quality posts from your feed'}
-        </p>
-      </div>
-
-      {/* Threshold Slider */}
-      <div style={{ marginBottom: '12px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 600 }}>QUALITY THRESHOLD</span>
-          <span style={{ fontSize: '12px', color: '#60a5fa', fontWeight: 600 }}>{settings.threshold}</span>
-        </div>
-        <input
-          type="range"
-          min="0"
-          max="80"
-          value={settings.threshold}
-          onChange={(e) => updateThreshold(Number(e.target.value))}
-          style={{ width: '100%', accentColor: '#3b82f6' }}
-        />
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#4b5563' }}>
-          <span>Show all</span>
-          <span>Strict</span>
-        </div>
-      </div>
-
-      {/* Detection Toggles */}
+      {/* Filter Rules */}
       <div style={{
         background: '#1a1a2e',
         borderRadius: '10px',
         padding: '10px 12px',
         marginBottom: '12px',
       }}>
-        <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '6px', fontWeight: 600 }}>
-          DETECT
+        <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '8px', fontWeight: 600 }}>
+          FILTER RULES
         </div>
-        <Toggle label="🤖 AI Content" checked={settings.enableAiDetection}
-          onChange={() => chrome.runtime.sendMessage({
-            type: 'UPDATE_SETTINGS', payload: { enableAiDetection: !settings.enableAiDetection }
-          }).then(s => setSettings(s))} />
-        <Toggle label="🎣 Engagement Bait" checked={settings.enableBaitDetection}
-          onChange={() => chrome.runtime.sendMessage({
-            type: 'UPDATE_SETTINGS', payload: { enableBaitDetection: !settings.enableBaitDetection }
-          }).then(s => setSettings(s))} />
-        <Toggle label="🤖 Bot/Farm" checked={settings.enableBotDetection}
-          onChange={() => chrome.runtime.sendMessage({
-            type: 'UPDATE_SETTINGS', payload: { enableBotDetection: !settings.enableBotDetection }
-          }).then(s => setSettings(s))} />
+        {ALL_CATEGORIES.map(cat => {
+          const meta = CATEGORY_META[cat];
+          const action = settings.filters[cat];
+          return (
+            <div
+              key={cat}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '6px 0',
+              }}
+            >
+              <span style={{ fontSize: '13px' }}>
+                {meta.emoji} {meta.label}
+              </span>
+              <button
+                onClick={() => cycleAction(cat)}
+                style={{
+                  padding: '3px 12px',
+                  borderRadius: '6px',
+                  border: `1px solid ${
+                    action === 'hide' ? '#ef4444' :
+                    action === 'dim' ? '#f59e0b' :
+                    '#374151'
+                  }`,
+                  background: action === 'hide' ? '#7f1d1d40' :
+                              action === 'dim' ? '#78350f40' :
+                              '#1f293780',
+                  color: action === 'hide' ? '#fca5a5' :
+                         action === 'dim' ? '#fcd34d' :
+                         '#6b7280',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  minWidth: '50px',
+                  textAlign: 'center',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {ACTION_LABELS[action]}
+              </button>
+            </div>
+          );
+        })}
+        <p style={{ fontSize: '10px', color: '#374151', marginTop: '6px', marginBottom: 0 }}>
+          Click to cycle: Show → Dim → Hide
+        </p>
       </div>
 
       {/* Actions */}
@@ -177,8 +190,10 @@ export function Popup() {
         </button>
         <button
           onClick={() => {
-            const score = stats?.session.avgFeedScore ?? 0;
-            const text = `My X feed health score: ${score}/100 🧹\n\nFeed Cleaner filtered ${stats?.session.postsFiltered ?? 0} low-quality posts today and found ${stats?.session.gemsFound ?? 0} gems 💎`;
+            const total = s?.postsFiltered ?? 0;
+            const scanned = s?.postsScanned ?? 0;
+            const cats = s?.postsByCategory;
+            const text = `🧹 Feed Cleaner scanned ${scanned} tweets:\n${cats?.ad ?? 0} ads hidden\n${cats?.ai ?? 0} AI posts flagged\n${cats?.bait ?? 0} engagement bait caught\n\nAll analysis runs locally. Zero data collected.`;
             navigator.clipboard.writeText(text);
           }}
           style={{
@@ -193,66 +208,13 @@ export function Popup() {
             fontWeight: 600,
           }}
         >
-          📋 Share Score
+          📋 Share
         </button>
       </div>
 
       {/* Footer */}
       <div style={{ marginTop: '12px', textAlign: 'center', fontSize: '10px', color: '#374151' }}>
-        Feed Cleaner v1.0.0 · All analysis runs locally · Zero data collected
-      </div>
-    </div>
-  );
-}
-
-// ── Components ────────────────────────────────────────────────
-
-function StatCard({ label, value, icon, suffix, color }: {
-  label: string; value: number; icon?: string; suffix?: string; color?: string;
-}) {
-  return (
-    <div style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: '20px', fontWeight: 700, color: color || '#e7e9ea', lineHeight: 1.2 }}>
-        {icon && <span style={{ fontSize: '14px' }}>{icon} </span>}
-        {value.toLocaleString()}{suffix || ''}
-      </div>
-      <div style={{ fontSize: '10px', color: '#6b7280' }}>{label}</div>
-    </div>
-  );
-}
-
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) {
-  return (
-    <div
-      onClick={onChange}
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '6px 0',
-        cursor: 'pointer',
-        fontSize: '13px',
-      }}
-    >
-      <span>{label}</span>
-      <div style={{
-        width: '36px',
-        height: '20px',
-        borderRadius: '10px',
-        background: checked ? '#3b82f6' : '#374151',
-        position: 'relative',
-        transition: 'background 0.2s',
-      }}>
-        <div style={{
-          width: '16px',
-          height: '16px',
-          borderRadius: '50%',
-          background: 'white',
-          position: 'absolute',
-          top: '2px',
-          left: checked ? '18px' : '2px',
-          transition: 'left 0.2s',
-        }} />
+        Feed Cleaner v2.0.0 · All analysis runs locally · Zero data collected
       </div>
     </div>
   );

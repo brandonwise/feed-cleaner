@@ -1,24 +1,29 @@
-// Feed Cleaner — Background Service Worker
-import {
-  getSettings, updateSettings,
-  getSessionStats, updateSessionStats, newSessionStats,
-  getDailyStats, updateDailyStats,
-  getAllTimeStats, updateAllTimeStats,
-  updateAccountProfile, getAccountProfiles,
-} from '../shared/storage';
-import { AVG_READ_TIME_SECONDS } from '../shared/constants';
-import type { SessionStats, DailyStats, AccountProfile } from '../shared/types';
+// Feed Cleaner v2 — Background Service Worker
+import { getSettings, updateSettings } from '../shared/storage';
+import { newSessionStats, AVG_READ_TIME_SECONDS, STORAGE_KEYS } from '../shared/constants';
+import type { SessionStats, DailyStats, AllTimeStats } from '../shared/types';
 
-console.log('[Feed Cleaner BG] Service worker started');
+console.log('[Feed Cleaner v2 BG] Service worker started');
+
+// ── Storage helpers (inline to avoid chunk issues) ────────────
+
+async function localGet(key: string): Promise<any> {
+  const result = await chrome.storage.local.get(key);
+  return result[key];
+}
+
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 // ── Message Handler ───────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   handleMessage(msg).then(sendResponse).catch(err => {
-    console.error('[Feed Cleaner BG] Error:', err);
+    console.error('[Feed Cleaner v2 BG] Error:', err);
     sendResponse({ error: err.message });
   });
-  return true; // async response
+  return true;
 });
 
 async function handleMessage(msg: any): Promise<any> {
@@ -39,80 +44,75 @@ async function handleMessage(msg: any): Promise<any> {
     }
 
     case 'GET_STATS': {
-      const session = await getSessionStats();
-      const daily = await getDailyStats();
-      const allTime = await getAllTimeStats();
+      const session = await localGet(STORAGE_KEYS.sessionStats) as SessionStats || newSessionStats();
+      const dailyAll = await localGet(STORAGE_KEYS.dailyStats) as Record<string, DailyStats> || {};
+      const daily = dailyAll[todayKey()] || {
+        date: todayKey(),
+        postsScanned: 0,
+        postsByCategory: { ad: 0, ai: 0, bait: 0, bot: 0, lowEffort: 0 },
+        postsFiltered: 0,
+        estimatedMinutesSaved: 0,
+      };
+      const allTime = await localGet(STORAGE_KEYS.allTimeStats) as AllTimeStats || {
+        totalPostsScanned: 0,
+        totalPostsFiltered: 0,
+        totalMinutesSaved: 0,
+        installDate: Date.now(),
+      };
       return { session, daily, allTime };
     }
 
     case 'RECORD_STATS': {
-      const stats = msg.payload as SessionStats & { estimatedMinutesSaved?: number };
+      const stats = msg.payload as SessionStats;
+      await chrome.storage.local.set({ [STORAGE_KEYS.sessionStats]: stats });
 
-      // Update session stats
-      await updateSessionStats(stats);
-
-      // Update daily stats
-      const daily = await getDailyStats();
+      // Update daily
+      const dailyAll = await localGet(STORAGE_KEYS.dailyStats) as Record<string, DailyStats> || {};
+      const today = todayKey();
+      const daily = dailyAll[today] || {
+        date: today,
+        postsScanned: 0,
+        postsByCategory: { ad: 0, ai: 0, bait: 0, bot: 0, lowEffort: 0 },
+        postsFiltered: 0,
+        estimatedMinutesSaved: 0,
+      };
       daily.postsScanned = Math.max(daily.postsScanned, stats.postsScanned);
       daily.postsFiltered = Math.max(daily.postsFiltered, stats.postsFiltered);
-      daily.gemsFound = Math.max(daily.gemsFound, stats.gemsFound);
-      daily.avgFeedScore = stats.avgFeedScore;
-      daily.estimatedMinutesSaved = stats.estimatedMinutesSaved
-        ? Math.round(stats.estimatedMinutesSaved)
-        : Math.round((stats.postsFiltered * AVG_READ_TIME_SECONDS) / 60);
-      await updateDailyStats(daily);
+      daily.postsByCategory = stats.postsByCategory;
+      daily.estimatedMinutesSaved = Math.round((stats.postsFiltered * AVG_READ_TIME_SECONDS) / 60);
+      dailyAll[today] = daily;
 
-      // Update all-time
-      const allTime = await getAllTimeStats();
-      allTime.totalPostsScanned += 1; // increment per batch
-      allTime.totalMinutesSaved = daily.estimatedMinutesSaved;
-      await updateAllTimeStats(allTime);
+      // Keep last 90 days
+      const keys = Object.keys(dailyAll).sort();
+      if (keys.length > 90) {
+        for (const key of keys.slice(0, keys.length - 90)) {
+          delete dailyAll[key];
+        }
+      }
+      await chrome.storage.local.set({ [STORAGE_KEYS.dailyStats]: dailyAll });
 
       return { ok: true };
     }
 
-    case 'GET_ACCOUNTS': {
-      const profiles = await getAccountProfiles();
-      const sorted = Object.values(profiles)
-        .sort((a, b) => b.postsAnalyzed - a.postsAnalyzed)
-        .slice(0, msg.payload?.limit || 50);
-      return sorted;
-    }
-
-    case 'RECORD_ACCOUNT': {
-      const profile = msg.payload as AccountProfile;
-      await updateAccountProfile(profile);
+    case 'RESET_SESSION':
+      await chrome.storage.local.set({ [STORAGE_KEYS.sessionStats]: newSessionStats() });
       return { ok: true };
-    }
-
-    case 'RESET_SESSION': {
-      await updateSessionStats(newSessionStats());
-      return { ok: true };
-    }
 
     default:
       return { error: `Unknown message type: ${msg.type}` };
   }
 }
 
-// ── Daily Stats Reset ─────────────────────────────────────────
-
-// Reset session stats on new day
-chrome.alarms?.create('daily-reset', { periodInMinutes: 60 });
-chrome.alarms?.onAlarm?.addListener((alarm) => {
-  if (alarm.name === 'daily-reset') {
-    // Session stats auto-reset when a new session starts
-    console.log('[Feed Cleaner BG] Hourly check');
-  }
-});
-
-// ── Install Event ─────────────────────────────────────────────
-
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
-    console.log('[Feed Cleaner BG] First install!');
-    const allTime = await getAllTimeStats();
-    allTime.installDate = Date.now();
-    await updateAllTimeStats(allTime);
+    console.log('[Feed Cleaner v2 BG] First install');
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.allTimeStats]: {
+        totalPostsScanned: 0,
+        totalPostsFiltered: 0,
+        totalMinutesSaved: 0,
+        installDate: Date.now(),
+      },
+    });
   }
 });
