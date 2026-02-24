@@ -26,10 +26,10 @@ export interface ScoreWeights {
 }
 
 const DEFAULT_WEIGHTS: ScoreWeights = {
-  ai: 30,
-  bait: 30,
-  bot: 20,
-  originality: 20,
+  ai: 20,
+  bait: 20,
+  bot: 10,
+  originality: 50,
 };
 
 /**

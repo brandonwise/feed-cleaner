@@ -44,10 +44,13 @@ export function scoreOriginality(ctx: AnalysisContext): DetectionResult {
   // ── Text Length Bonus ───────────────────────────────────────
   // Longer, substantive posts are more likely original
   if (ctx.stats.wordCount >= 30 && !ctx.isReply) {
-    score += 5;
+    score += 10;
   }
   if (ctx.stats.wordCount >= 80) {
-    score += 5;
+    score += 10;
+  }
+  if (ctx.stats.wordCount >= 150) {
+    score += 10;
   }
 
   // ── Vocabulary Richness ─────────────────────────────────────
