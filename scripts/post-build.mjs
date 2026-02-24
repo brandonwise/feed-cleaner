@@ -10,9 +10,16 @@ const dist = join(root, 'dist');
 
 mkdirSync(join(dist, 'assets'), { recursive: true });
 
-// Copy icons
+// Copy icons — check both locations
 for (const size of [16, 48, 128]) {
-  try { cpSync(join(root, `assets/icon-${size}.png`), join(dist, `assets/icon-${size}.png`)); } catch {}
+  const candidates = [
+    join(root, `public/icons/icon${size}.png`),
+    join(root, `public/icons/icon-${size}.png`),
+    join(root, `assets/icon-${size}.png`),
+  ];
+  for (const src of candidates) {
+    try { cpSync(src, join(dist, `assets/icon-${size}.png`)); break; } catch {}
+  }
 }
 
 // Copy CSS
@@ -22,7 +29,7 @@ try { cpSync(join(root, 'src/content/styles.css'), join(dist, 'assets/styles.css
 const manifest = {
   manifest_version: 3,
   name: "Feed Cleaner — AI Content Filter",
-  version: "1.0.0",
+  version: "2.0.0",
   description: "Transform your X feed. Filter AI slop, engagement bait, and bot content. See what's real.",
   permissions: ["storage"],
   host_permissions: ["https://x.com/*", "https://twitter.com/*"],

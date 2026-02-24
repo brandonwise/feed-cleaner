@@ -73,14 +73,34 @@ export function extractTweet(article: HTMLElement): TweetData | null {
     const parent = article.closest('[data-testid="placementTracking"]');
     if (parent) isPromoted = true;
 
-    // Check for "Promoted" or "Ad" text in the tweet footer
+    // Check for "Promoted", "Ad", or "Sponsored" text anywhere in the tweet
     if (!isPromoted) {
-      const spans = article.querySelectorAll('span');
-      for (const span of spans) {
-        const t = span.textContent?.trim().toLowerCase();
-        if (t === 'promoted' || t === 'ad' || t === 'sponsored') {
+      // Check all text nodes for ad labels — X puts "Ad" in various elements
+      const allElements = article.querySelectorAll('span, div');
+      for (const el of allElements) {
+        // Only check direct text content (not nested children) to avoid false positives
+        const directText = Array.from(el.childNodes)
+          .filter(n => n.nodeType === Node.TEXT_NODE)
+          .map(n => n.textContent?.trim().toLowerCase())
+          .join('');
+        if (directText === 'promoted' || directText === 'ad' || directText === 'sponsored') {
           isPromoted = true;
           break;
+        }
+      }
+
+      // Fallback: check full textContent of small elements (< 15 chars)
+      if (!isPromoted) {
+        const smallSpans = article.querySelectorAll('span');
+        for (const span of smallSpans) {
+          const t = span.textContent?.trim();
+          if (t && t.length <= 12) {
+            const lower = t.toLowerCase();
+            if (lower === 'promoted' || lower === 'ad' || lower === 'sponsored' || lower === 'promoted by') {
+              isPromoted = true;
+              break;
+            }
+          }
         }
       }
     }
