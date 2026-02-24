@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && node scripts/post-build.mjs",
-    "build:fast": "vite build && node scripts/post-build.mjs",
+    "build": "tsc --noEmit && vite build && BUILD_TARGET=content vite build && node scripts/post-build.mjs",
+    "build:fast": "vite build && BUILD_TARGET=content vite build && node scripts/post-build.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
