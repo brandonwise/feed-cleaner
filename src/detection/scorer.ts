@@ -115,7 +115,7 @@ export function scorePost(input: ScoreInput, weights: ScoreWeights = DEFAULT_WEI
     },
     flags,
     timestamp: Date.now(),
-    isGem: overallScore >= 85,
+    isGem: overallScore >= 90,
   };
 }
 

@@ -186,7 +186,7 @@ describe('Originality Scoring', () => {
       'The orthographic projection of this architectural rendering reveals structural deficiencies ' +
       'in the cantilever design that would compromise seismic resilience during lateral oscillation events.'
     );
-    expect(result.breakdown.originalityScore).toBeGreaterThan(55);
+    expect(result.breakdown.originalityScore).toBeGreaterThan(45);
   });
 });
 

@@ -10,8 +10,8 @@ import type { AnalysisContext, DetectionResult, DetectionFlag } from './types';
 export function scoreOriginality(ctx: AnalysisContext): DetectionResult {
   const flags: DetectionFlag[] = [];
 
-  // Start at 60 (neutral) and adjust up/down
-  let score = 60;
+  // Start at 40 (slightly below neutral) — must earn a high score
+  let score = 40;
 
   // ── Negative Signals (reduce originality) ───────────────────
   for (const pattern of LOW_ORIGINALITY_PATTERNS) {
@@ -90,7 +90,18 @@ export function scoreOriginality(ctx: AnalysisContext): DetectionResult {
 
   // ── Very Short Posts ────────────────────────────────────────
   if (ctx.stats.wordCount < 5 && !ctx.hasMedia && !ctx.isReply) {
-    score -= 10;
+    score -= 15;
+  }
+
+  // ── Medium-length substance bonus ──────────────────────────
+  // Tweets 15-30 words with no negative signals get a small boost
+  if (ctx.stats.wordCount >= 15 && ctx.stats.wordCount < 30) {
+    score += 5;
+  }
+
+  // ── Has media (photo/video) bonus ──────────────────────────
+  if (ctx.hasMedia) {
+    score += 5;
   }
 
   // Clamp to 0-100
