@@ -61,6 +61,35 @@ describe('Ad Detector', () => {
     }));
     expect(result).not.toBeNull();
   });
+
+  it('should flag affiliate disclosure with monetization link', () => {
+    const result = detectAd(makeTweet({
+      text: 'Paid partnership: grab my toolkit, link in bio #ad',
+      linkDomains: ['stan.store'],
+      hasExternalLink: true,
+    }));
+    expect(result).not.toBeNull();
+    expect(result!.signals.some(s => s.name === 'affiliate_disclosure')).toBe(true);
+    expect(result!.signals.some(s => s.name === 'monetization_link')).toBe(true);
+  });
+
+  it('should flag side-hustle funnel language', () => {
+    const result = detectAd(makeTweet({
+      text: 'I made $3k/week with TikTok Shop dropshipping. DM me "guide" and I will send the setup.',
+      wordCount: 17,
+    }));
+    expect(result).not.toBeNull();
+    expect(result!.signals.some(s => s.name === 'monetization_claim')).toBe(true);
+    expect(result!.signals.some(s => s.name === 'funnel_language')).toBe(true);
+  });
+
+  it('should not flag neutral trend commentary', () => {
+    const result = detectAd(makeTweet({
+      text: 'Interesting chart on TikTok Shop growth this quarter. Curious if retention holds.',
+      wordCount: 12,
+    }));
+    expect(result).toBeNull();
+  });
 });
 
 // ── AI Detection ──────────────────────────────────────────────
