@@ -99,6 +99,14 @@ export function detectAd(tweet: TweetData): CategoryFlag | null {
       severity: 'medium',
     },
     {
+      name: 'keyword_comment_gate',
+      pattern: /(?:comment\s+["']?(?:slides|guide|template|shop|link|course|ebook|dm)["']?\s+(?:for|to|get)|type\s+["']?(?:guide|link|shop)["']?\s+(?:below|in\s+comments))/i,
+      label: 'Keyword Comment Funnel',
+      desc: 'Uses keyword-comment funnel to route users into promo flow',
+      weight: 18,
+      severity: 'high',
+    },
+    {
       name: 'shop_growth_hack',
       pattern: /(?:tiktok\s+shop|dropshipping|affiliate\s+marketing|ugc\s+ads?|faceless\s+content)/i,
       label: 'Growth Hack Pitch',
@@ -137,7 +145,22 @@ export function detectAd(tweet: TweetData): CategoryFlag | null {
 
   // ── Monetization / affiliate links ─────────────────────────
 
-  const monetizationDomains = ['linktr.ee', 'beacons.ai', 'stan.store', 'gumroad.com', 'amzn.to', 'ko-fi.com'];
+  const monetizationDomains = [
+    'linktr.ee',
+    'beacons.ai',
+    'stan.store',
+    'gumroad.com',
+    'amzn.to',
+    'ko-fi.com',
+    'shopmy.us',
+    'shopltk.com',
+    'ltk.app',
+    'bio.site',
+    'msha.ke',
+    'hoo.be',
+    'snipfeed.co',
+    'withkoji.com',
+  ];
   const foundMonetizationDomain = tweet.linkDomains.find(domain =>
     monetizationDomains.some(d => domain.includes(d)),
   );

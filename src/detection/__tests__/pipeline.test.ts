@@ -49,4 +49,20 @@ describe("Detection pipeline smoke checks", () => {
 
     expect(result.flags).toHaveLength(0);
   });
+
+  it("flags keyword-comment affiliate slideshow funnels end-to-end", () => {
+    const result = detectAll(
+      makeTweet({
+        text: 'Comment "SLIDES" to get my TikTok Shop setup. Link in bio.',
+        linkDomains: ["shopmy.us"],
+        hasExternalLink: true,
+        wordCount: 11,
+      }),
+    );
+
+    const adFlag = result.flags.find((flag) => flag.category === "ad");
+    expect(adFlag).toBeDefined();
+    expect(adFlag!.signals.some((signal) => signal.name === "keyword_comment_gate")).toBe(true);
+    expect(adFlag!.signals.some((signal) => signal.name === "monetization_link")).toBe(true);
+  });
 });

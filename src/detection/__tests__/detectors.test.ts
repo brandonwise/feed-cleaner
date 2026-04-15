@@ -83,6 +83,28 @@ describe('Ad Detector', () => {
     expect(result!.signals.some(s => s.name === 'funnel_language')).toBe(true);
   });
 
+  it('should flag keyword comment funnels from slideshow promos', () => {
+    const result = detectAd(makeTweet({
+      text: 'Comment "SLIDES" to get my TikTok Shop setup and exact products.',
+      wordCount: 11,
+    }));
+
+    expect(result).not.toBeNull();
+    expect(result!.signals.some(s => s.name === 'keyword_comment_gate')).toBe(true);
+  });
+
+  it('should flag newer creator monetization hubs', () => {
+    const result = detectAd(makeTweet({
+      text: 'Grab my tool stack, link in bio.',
+      linkDomains: ['shopmy.us'],
+      hasExternalLink: true,
+      wordCount: 8,
+    }));
+
+    expect(result).not.toBeNull();
+    expect(result!.signals.some(s => s.name === 'monetization_link')).toBe(true);
+  });
+
   it('should not flag neutral trend commentary', () => {
     const result = detectAd(makeTweet({
       text: 'Interesting chart on TikTok Shop growth this quarter. Curious if retention holds.',
