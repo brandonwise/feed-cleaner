@@ -154,15 +154,37 @@ export function extractTweet(article: HTMLElement): TweetData | null {
       const href = (link as HTMLAnchorElement).href;
       try {
         const url = new URL(href);
-        if (!url.hostname.includes('x.com') && !url.hostname.includes('twitter.com') && !url.hostname.includes('t.co')) {
+
+        const hostname = normalizeDomain(url.hostname);
+
+        if (!isInternalDomain(hostname)) {
           hasExternalLink = true;
-          linkDomains.push(url.hostname);
+          linkDomains.push(hostname);
         }
-        // Also resolve t.co links via the visible text (X shows the real URL)
-        const visibleText = link.textContent?.trim() || '';
-        if (url.hostname === 't.co' && visibleText && !visibleText.startsWith('http')) {
-          // The displayed text often shows the real domain
-          hasExternalLink = true;
+
+        // Resolve t.co wrappers using visible/label text (X often shows the real domain)
+        if (hostname === 't.co') {
+          const candidateTexts = [
+            link.textContent?.trim() || '',
+            (link as HTMLAnchorElement).title?.trim() || '',
+            link.getAttribute('aria-label')?.trim() || '',
+          ];
+
+          let extracted = false;
+          for (const candidate of candidateTexts) {
+            const displayDomain = extractDisplayDomain(candidate);
+            if (displayDomain) {
+              hasExternalLink = true;
+              linkDomains.push(displayDomain);
+              extracted = true;
+              break;
+            }
+          }
+
+          // Fallback: if X hides destination but text suggests an external target, mark as external.
+          if (!extracted && looksLikeExternalHint(candidateTexts[0])) {
+            hasExternalLink = true;
+          }
         }
       } catch { /* invalid URL */ }
     }
@@ -204,4 +226,60 @@ function hashCode(str: string): string {
     hash |= 0;
   }
   return Math.abs(hash).toString(36);
+}
+
+function normalizeDomain(domain: string): string {
+  return domain.toLowerCase().replace(/^www\./, '');
+}
+
+function isInternalDomain(domain: string): boolean {
+  return (
+    domain === 'x.com' ||
+    domain.endsWith('.x.com') ||
+    domain === 'twitter.com' ||
+    domain.endsWith('.twitter.com') ||
+    domain === 't.co' ||
+    domain.endsWith('.t.co')
+  );
+}
+
+function looksLikeExternalHint(visibleText: string): boolean {
+  if (!visibleText) return false;
+
+  const text = visibleText.trim().toLowerCase();
+  if (!text) return false;
+
+  if (text.startsWith('x.com/') || text.startsWith('twitter.com/')) return false;
+  if (text.startsWith('http://x.com') || text.startsWith('https://x.com')) return false;
+  if (text.startsWith('http://twitter.com') || text.startsWith('https://twitter.com')) return false;
+
+  return text.includes('.') || /(?:link\s+in\s+bio|shop|store|deal|guide|template)/i.test(text);
+}
+
+/**
+ * Extract a probable destination domain from X's truncated link display text.
+ * Example inputs: "linktr.ee/me", "https://amzn.to/deal", "(stan.store/kit)…"
+ */
+export function extractDisplayDomain(displayText: string): string | null {
+  if (!displayText) return null;
+
+  const cleaned = displayText
+    .replace(/…/g, '')
+    .replace(/^[\s\("'`\[]+/, '')
+    .replace(/[\s\)"'`\],.;!?]+$/, '')
+    .trim();
+
+  if (!cleaned) return null;
+
+  const token = cleaned.split(/\s+/)[0];
+  const withoutProtocol = token.replace(/^https?:\/\//i, '');
+  const hostCandidate = withoutProtocol.split(/[\/?#]/)[0];
+
+  if (!hostCandidate || !hostCandidate.includes('.')) return null;
+
+  const domain = normalizeDomain(hostCandidate);
+  if (!/^[a-z0-9.-]+$/i.test(domain)) return null;
+  if (isInternalDomain(domain)) return null;
+
+  return domain;
 }
