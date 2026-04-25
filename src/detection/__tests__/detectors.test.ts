@@ -253,6 +253,46 @@ describe('Bot Detector', () => {
     expect(result).not.toBeNull();
   });
 
+  it('should flag reply hijack CTA with external link', () => {
+    const result = detectBot(makeTweet({
+      text: 'Great thread. Check my link in bio for the full strategy.',
+      isReply: true,
+      hasExternalLink: true,
+      linkDomains: ['t.co'],
+      isVerified: true,
+      wordCount: 11,
+    }));
+
+    expect(result).not.toBeNull();
+    expect(result!.signals.some(s => s.name === 'reply_hijack_cta')).toBe(true);
+  });
+
+  it('should flag reply mention spray with monetization link', () => {
+    const result = detectBot(makeTweet({
+      text: '@a1 @a2 @a3 if you want the exact setup, grab it here',
+      isReply: true,
+      hasExternalLink: true,
+      linkDomains: ['stan.store'],
+      wordCount: 12,
+    }));
+
+    expect(result).not.toBeNull();
+    expect(result!.signals.some(s => s.name === 'reply_mention_spray')).toBe(true);
+    expect(result!.signals.some(s => s.name === 'reply_monetization_link')).toBe(true);
+  });
+
+  it('should not flag normal helpful replies', () => {
+    const result = detectBot(makeTweet({
+      text: 'Great thread. Here is the API doc for reference: docs.example.com/specs',
+      isReply: true,
+      hasExternalLink: true,
+      linkDomains: ['docs.example.com'],
+      wordCount: 11,
+    }));
+
+    expect(result).toBeNull();
+  });
+
   it('should not flag normal users', () => {
     const result = detectBot(makeTweet({
       authorHandle: 'brandonwise',

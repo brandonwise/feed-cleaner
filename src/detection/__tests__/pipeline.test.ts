@@ -65,4 +65,22 @@ describe("Detection pipeline smoke checks", () => {
     expect(adFlag!.signals.some((signal) => signal.name === "keyword_comment_gate")).toBe(true);
     expect(adFlag!.signals.some((signal) => signal.name === "monetization_link")).toBe(true);
   });
+
+  it("flags blue-check reply hijack spam with CTA", () => {
+    const result = detectAll(
+      makeTweet({
+        text: "Awesome post. Check my bio for the full playbook and templates.",
+        isReply: true,
+        isVerified: true,
+        hasExternalLink: true,
+        linkDomains: ["stan.store"],
+        wordCount: 11,
+      }),
+    );
+
+    const botFlag = result.flags.find((flag) => flag.category === "bot");
+    expect(botFlag).toBeDefined();
+    expect(botFlag!.signals.some((signal) => signal.name === "reply_hijack_cta")).toBe(true);
+    expect(botFlag!.signals.some((signal) => signal.name === "verified_reply_pitch")).toBe(true);
+  });
 });

@@ -77,6 +77,67 @@ export function detectBot(tweet: TweetData): CategoryFlag | null {
     });
   }
 
+  // ── Reply hijack patterns (blue-check/link spam replies) ───
+
+  const mentionCount = (tweet.text.match(/@\w{2,15}/g) || []).length;
+  if (tweet.isReply && mentionCount >= 3) {
+    signals.push({
+      name: 'reply_mention_spray',
+      label: 'Mention Spray Reply',
+      description: `${mentionCount} @mentions in a single reply`,
+      weight: mentionCount >= 5 ? 14 : 10,
+      severity: mentionCount >= 5 ? 'high' : 'medium',
+    });
+  }
+
+  const replyMonetizationDomains = [
+    'linktr.ee',
+    'beacons.ai',
+    'stan.store',
+    'shopmy.us',
+    'bio.site',
+    'msha.ke',
+    'hoo.be',
+    'snipfeed.co',
+    'withkoji.com',
+  ];
+  const replyMonetizationLink = tweet.linkDomains.find(domain =>
+    replyMonetizationDomains.some(d => domain.includes(d)),
+  );
+
+  if (tweet.isReply && replyMonetizationLink) {
+    signals.push({
+      name: 'reply_monetization_link',
+      label: 'Reply Monetization Link',
+      description: `Reply routes to monetization hub (${replyMonetizationLink})`,
+      weight: 12,
+      severity: 'medium',
+    });
+  }
+
+  const hasReplyCTA = /(?:check\s+(?:out\s+)?(?:my|the)?\s*(?:link|bio|profile)|link\s+in\s+bio|follow\s+me|dm\s+me|join\s+my|grab\s+my|visit\s+my)/i.test(tweet.text);
+  const hasReplyPraiseHook = /(?:great|nice|awesome|amazing|solid|insightful|valuable)\s+(?:thread|post|take|insight|breakdown)/i.test(tweet.text);
+
+  if (tweet.isReply && tweet.hasExternalLink && hasReplyCTA && (hasReplyPraiseHook || tweet.wordCount <= 18)) {
+    signals.push({
+      name: 'reply_hijack_cta',
+      label: 'Reply Hijack CTA',
+      description: 'Generic reply praise that pivots into a link/profile CTA',
+      weight: 16,
+      severity: 'high',
+    });
+  }
+
+  if (tweet.isReply && tweet.isVerified && tweet.hasExternalLink && hasReplyCTA) {
+    signals.push({
+      name: 'verified_reply_pitch',
+      label: 'Verified Reply Pitch',
+      description: 'Verified reply includes outbound CTA and external link',
+      weight: 12,
+      severity: 'medium',
+    });
+  }
+
   // ── Display name patterns ───────────────────────────────────
 
   // Emoji-stuffed display name (4+ emojis)
