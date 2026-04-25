@@ -2,7 +2,7 @@
 
 **Transform your X feed. Filter AI slop, engagement bait, and bot content. See what's real.**
 
-[![Tests](https://img.shields.io/badge/tests-28%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-40%20passing-brightgreen)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)]()
 [![Chrome MV3](https://img.shields.io/badge/Chrome-Manifest%20V3-orange)]()
 [![Privacy](https://img.shields.io/badge/privacy-100%25%20local-green)]()
@@ -17,7 +17,7 @@ Feed Cleaner scores every post on your X timeline across 4 dimensions:
 |----------|----------------|
 | 🤖 **AI Content** | 24 linguistic patterns, 500+ vocabulary signals, sentence uniformity, readability analysis |
 | 🎣 **Engagement Bait** | Shock hooks, rage bait, FOMO triggers, engagement farming, hashtag stuffing |
-| 🤖 **Bot/Farm** | Generic replies, suspicious follower ratios, template posts, new account activity |
+| 🤖 **Bot/Farm** | Generic replies, blue-check reply hijacks, mention spray spam, template posts |
 | 💎 **Originality** | Personal experience, technical depth, vocabulary richness, natural writing rhythm |
 
 Posts get graded A through F with full transparency — click any score to see exactly why.
@@ -31,6 +31,7 @@ Posts get graded A through F with full transparency — click any score to see e
 - **Session Stats**: Posts scanned, filtered, time saved — right in the popup
 - **Account Audit Dashboard**: See your best and worst follows ranked by content quality
 - **Share Your Score**: Copy your feed health score and share it
+- **Reply Hijack Detection**: Catches low-value "great post, check my bio" reply spam (including verified pitch accounts)
 
 ## Privacy
 
@@ -59,7 +60,7 @@ Posts get graded A through F with full transparency — click any score to see e
 npm install
 npm run dev          # Vite dev server
 npm run build        # Production build
-npx vitest run       # Run tests (28 passing)
+npx vitest run       # Run tests (40 passing)
 npx tsc --noEmit     # Type check
 ```
 
@@ -97,7 +98,7 @@ src/
 ## Stats
 
 - **2,600+ lines** of TypeScript
-- **28 tests** passing
+- **40 tests** passing
 - **100+ detection patterns**
 - **500+ AI vocabulary terms**
 - **Zero runtime dependencies** (React only for popup/dashboard UI)
